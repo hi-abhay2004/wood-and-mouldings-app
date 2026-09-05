@@ -1,56 +1,68 @@
-# Welcome to your Expo app 👋
+# Wood & Mouldings — Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Native Expo shell around the existing web app at `https://wood-and-mouldings.vercel.app`. Renders the site in a WebView (session cookies, navigation, localStorage all work as in a real browser) and adds native push notifications on top — it does not reimplement any of the web app's UI or business logic.
 
-## Get started
+## Architecture
 
-1. Install dependencies
+```
+Expo Shell (this repo)
+  └── WebView → https://wood-and-mouldings.vercel.app (source of truth for all UI/auth/data)
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+Web app backend (gala-kitchen-project repo)
+  └── Project/labour-assignment status change
+        → writes an in-app Notification row
+        → fires an Expo push to the assigned Labour's registered device(s)
+              → this app receives it, tap opens the relevant page in the WebView
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+Push token registration/unregistration happens by injecting a `fetch()` call *into the WebView's own page context* (not from native code) — this way the request automatically carries the page's session cookie via `credentials: "include"`, with no native cookie-reading library needed. If the user isn't logged in yet, registration silently no-ops (401, ignored) and will succeed on the next page load once they are.
 
-### Other setup steps
+## Setup
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```bash
+npm install
+npx expo start
+```
 
-## Learn more
+Then open in a development build, Android emulator, or iOS simulator. **Push notifications require a physical device** (not a simulator) and an EAS project — see below.
 
-To learn more about developing your project with Expo, look at the following resources:
+## Environment variables
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+- `EXPO_PUBLIC_WEB_APP_URL` — the web app's URL. Set in `.env` (already configured to `https://wood-and-mouldings.vercel.app`). Public by design (`EXPO_PUBLIC_*` vars are inlined into the bundle) — never put secrets here.
 
-## Join the community
+## Push notifications — one-time EAS setup required
 
-Join our community of developers creating universal apps.
+Expo push tokens require the project to be linked to an EAS project (`Constants.expoConfig.extra.eas.projectId`). Without this, `registerForPushNotificationsAsync()` in `src/lib/push-notifications.ts` logs a warning and returns `null` — the rest of the app still works, just without push.
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npx eas login
+npx eas init
+```
+
+This writes the `extra.eas.projectId` into `app.json` automatically.
+
+## Production builds (Android/iOS)
+
+```bash
+npx eas build:configure   # first time only, after eas init
+npx eas build --platform android
+npx eas build --platform ios   # requires an Apple Developer account
+```
+
+iOS additionally needs push notification credentials configured through EAS (`eas credentials`) before a production push will deliver — EAS walks you through this on first build.
+
+## Testing checklist
+
+1. **App launch** — install/open the app, the web app loads inside the WebView.
+2. **Auth persistence** — log in, close the app fully, reopen — still logged in (session cookie persisted by the WebView's cookie store).
+3. **Push registration** — log in, grant the notification permission prompt, confirm a `push_device_tokens` row appears for that user in the database.
+4. **Status update → push** — as a Vendor, assign Labour to a measurement/installation request; confirm the assigned Labour's device receives a push (requires that Labour to have logged into the mobile app at least once).
+5. **Notification tap** — tap a received notification (app closed, backgrounded, and foregrounded — all three) — the WebView opens directly to the assigned job, not just the app root.
+6. **Unrelated users** — confirm a Labour/Vendor/Salesperson *not* party to the change receives nothing.
+7. **Back navigation (Android)** — navigate a few pages deep inside the WebView, press the hardware back button — goes back within the site before falling through to exiting the app.
+8. **Offline/error state** — turn off network, reload — error screen with Retry appears instead of a blank/crashed WebView.
+9. **External links** — tap a link to a different domain (if any exist in the web app) — opens in the system browser, not inside the WebView.
+
+## Known gap
+
+App icon/splash assets are still Expo's defaults (`assets/images/`) — no Wood & Mouldings branded icon exists yet. Swap those files in when branded assets are available; nothing else needs to change.
