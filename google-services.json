@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "100090415638",
+    "project_id": "woodandmoudlings",
+    "storage_bucket": "woodandmoudlings.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:100090415638:android:ff47239c3c6d83532c4337",
+        "android_client_info": {
+          "package_name": "com.woodandmouldings.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBWRiMN7oVK2gs-jHwZ9eVW2LBbrOyz1YE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
