@@ -45,3 +45,9 @@ example
 # generated native folders
 /ios
 /android
+
+# stray build/sideload artifacts — not something eas build regenerates from,
+# and not meant to live in the repo at all (see the mobile compatibility pass)
+*.apk
+*.aab
+*.ipa

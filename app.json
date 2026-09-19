@@ -13,7 +13,9 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification"
-        ]
+        ],
+        "NSCameraUsageDescription": "Wood & Mouldings needs camera access so you can photograph site, measurement and installation work.",
+        "NSPhotoLibraryUsageDescription": "Wood & Mouldings needs photo library access so you can attach existing site photos."
       }
     },
     "android": {
@@ -27,7 +29,9 @@
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "NOTIFICATIONS"
+        "NOTIFICATIONS",
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
       ]
     },
     "web": {
@@ -50,7 +54,8 @@
           "icon": "./assets/images/notification-icon.png",
           "color": "#208AEF"
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

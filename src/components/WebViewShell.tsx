@@ -17,12 +17,47 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView, type WebViewNavigation } from "react-native-webview";
-import type { WebViewErrorEvent, WebViewHttpErrorEvent } from "react-native-webview/lib/WebViewTypes";
+import type { WebViewErrorEvent, WebViewHttpErrorEvent, WebViewMessageEvent } from "react-native-webview/lib/WebViewTypes";
 import { useFocusEffect } from "expo-router";
+import { File, Paths } from "expo-file-system";
+import * as Sharing from "expo-sharing";
 
 import { WEB_APP_URL, webAppPath } from "@/lib/web-app-url";
 import { registerForPushNotificationsAsync } from "@/lib/push-notifications";
 import { isAppRootRoute } from "@/lib/root-routes";
+
+/**
+ * The web app has no way to trigger a real device download from inside a
+ * bare WebView (blob: URLs and <a download> only work in a real browser) —
+ * so gala-kitchen-project's triggerDownload() (vendor-bill-export.ts)
+ * detects window.ReactNativeWebView and posts the file here instead, base64
+ * encoded, for the export flows (PDF/Excel) that need it.
+ */
+interface DownloadMessage {
+  type: "download";
+  filename: string;
+  mime: string;
+  base64: string;
+}
+
+function isDownloadMessage(value: unknown): value is DownloadMessage {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { type?: unknown }).type === "download" &&
+    typeof (value as { filename?: unknown }).filename === "string" &&
+    typeof (value as { base64?: unknown }).base64 === "string"
+  );
+}
+
+async function handleDownloadMessage(message: DownloadMessage): Promise<void> {
+  const file = new File(Paths.cache, message.filename);
+  file.write(message.base64, { encoding: "base64" });
+
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(file.uri, { mimeType: message.mime, dialogTitle: message.filename });
+  }
+}
 
 export interface WebViewShellHandle {
   /** Navigates to a path within the web app — used for notification-tap deep links. */
@@ -169,6 +204,20 @@ const WebViewShell = forwardRef<WebViewShellHandle, WebViewShellProps>(({ initia
     setReloadKey((k) => k + 1);
   }, []);
 
+  const handleMessage = useCallback((event: WebViewMessageEvent) => {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(event.nativeEvent.data);
+    } catch {
+      return;
+    }
+    if (isDownloadMessage(parsed)) {
+      handleDownloadMessage(parsed).catch((err) => {
+        console.error("Failed to hand off a downloaded file:", err);
+      });
+    }
+  }, []);
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       {error ? (
@@ -190,6 +239,7 @@ const WebViewShell = forwardRef<WebViewShellHandle, WebViewShellProps>(({ initia
           onLoadEnd={handleLoadEnd}
           onError={handleError}
           onHttpError={handleHttpError}
+          onMessage={handleMessage}
           // Session cookie (httpOnly) must survive app restarts and be sent
           // on every request — this is what makes "stay logged in" work.
           sharedCookiesEnabled
