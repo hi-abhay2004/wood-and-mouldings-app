@@ -31,8 +31,9 @@ yarn-error.*
 *.pem
 
 # local env files
-.env*.local
-
+.env*
+analyze_apk.py
+assets_images_*.png
 # Firebase service account keys — real secrets, never commit
 firebase-service-account.json
 woodandmoudlings-firebase-adminsdk-*.json
