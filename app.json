@@ -55,7 +55,8 @@
           "color": "#208AEF"
         }
       ],
-      "expo-sharing"
+      "expo-sharing",
+      "@preeternal/react-native-cookie-manager"
     ],
     "experiments": {
       "typedRoutes": true,

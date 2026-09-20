@@ -22,6 +22,8 @@ import { useFocusEffect } from "expo-router";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 
+import CookieManager from "@preeternal/react-native-cookie-manager";
+
 import { WEB_APP_URL, webAppPath } from "@/lib/web-app-url";
 import { registerForPushNotificationsAsync } from "@/lib/push-notifications";
 import { isAppRootRoute } from "@/lib/root-routes";
@@ -137,10 +139,21 @@ const WebViewShell = forwardRef<WebViewShellHandle, WebViewShellProps>(({ initia
 
   const handleNavigationStateChange = useCallback((navState: WebViewNavigation) => {
     setCanGoBack(navState.canGoBack);
+    const wasOnLogin = currentPathRef.current.includes("/login");
     try {
       currentPathRef.current = new URL(navState.url).pathname;
     } catch {
       // Unparseable URL — leave currentPathRef at its last known value.
+    }
+
+    // Android's WebView cookie jar writes to disk lazily, so a session
+    // cookie set by /api/auth/login can be lost if the app is force-quit
+    // shortly after login, before the OS gets around to persisting it —
+    // forcing a re-login on every restart. Flushing right after leaving
+    // /login (i.e. login just succeeded) makes the write immediate. iOS's
+    // WKWebView cookie store already persists reliably on its own.
+    if (Platform.OS === "android" && wasOnLogin && !currentPathRef.current.includes("/login")) {
+      CookieManager.flush().catch(() => {});
     }
 
     // Best-effort push-token registration once the page (and its session
