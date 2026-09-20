@@ -4,6 +4,7 @@ import {
   useImperativeHandle,
   useRef,
   useState,
+  useEffect,
 } from "react";
 import {
   ActivityIndicator,
@@ -14,6 +15,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  PermissionsAndroid,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView, type WebViewNavigation } from "react-native-webview";
@@ -54,6 +56,7 @@ function isDownloadMessage(value: unknown): value is DownloadMessage {
 
 async function handleDownloadMessage(message: DownloadMessage): Promise<void> {
   const file = new File(Paths.cache, message.filename);
+  file.create({ overwrite: true });
   file.write(message.base64, { encoding: "base64" });
 
   if (await Sharing.isAvailableAsync()) {
@@ -114,6 +117,15 @@ const WebViewShell = forwardRef<WebViewShellHandle, WebViewShellProps>(({ initia
     appVersion: string;
     deviceName: string | null;
   } | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.CAMERA,
+        PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES,
+      ]).catch(() => {});
+    }
+  }, []);
   // Tracks the current page's path for the hardware-Back decision below —
   // a ref (not state) since it only needs to be read at press-time, not
   // trigger a re-render on every navigation.
