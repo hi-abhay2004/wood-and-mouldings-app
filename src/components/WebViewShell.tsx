@@ -72,8 +72,14 @@ export interface WebViewShellHandle {
  * avoids needing a native cookie-jar reader just to authenticate one POST.
  * Silently no-ops if the user isn't logged in yet (401, ignored).
  */
-function buildRegisterTokenScript(token: string, platform: string): string {
-  const payload = JSON.stringify({ token, platform });
+function buildRegisterTokenScript(
+  token: string,
+  platform: string,
+  installationId: string,
+  appVersion: string,
+  deviceName: string | null,
+): string {
+  const payload = JSON.stringify({ token, platform, installationId, appVersion, deviceName });
   return `
     (function () {
       try {
@@ -101,7 +107,13 @@ const WebViewShell = forwardRef<WebViewShellHandle, WebViewShellProps>(({ initia
   const [error, setError] = useState<string | null>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const pushTokenRef = useRef<{ token: string; platform: string } | null>(null);
+  const pushTokenRef = useRef<{
+    token: string;
+    platform: string;
+    installationId: string;
+    appVersion: string;
+    deviceName: string | null;
+  } | null>(null);
   // Tracks the current page's path for the hardware-Back decision below —
   // a ref (not state) since it only needs to be read at press-time, not
   // trigger a re-render on every navigation.
@@ -156,13 +168,18 @@ const WebViewShell = forwardRef<WebViewShellHandle, WebViewShellProps>(({ initia
       CookieManager.flush().catch(() => {});
     }
 
-    // Best-effort push-token registration once the page (and its session
-    // cookie, if any) has loaded, and a best-effort unregister when the user
+    // Push-token registration used to re-fire on every single navigation,
+    // which is unnecessary — the token doesn't change per-screen. It now
+    // only fires on the specific /login → authenticated transition (using
+    // wasOnLogin computed above), which is the "auth becomes available"
+    // trigger; app-startup registration is handled separately in
+    // handleLoadEnd. A best-effort unregister still happens when the user
     // lands back on /login — there's no explicit logout webhook, so this is
     // a heuristic, not a guarantee; ownership-scoped unregister on the
     // backend makes a spurious call harmless.
     if (pushTokenRef.current) {
-      if (navState.url.includes("/login")) {
+      const nowOnLogin = currentPathRef.current.includes("/login");
+      if (nowOnLogin) {
         const token = pushTokenRef.current.token;
         webViewRef.current?.injectJavaScript(`
           (function () {
@@ -177,9 +194,10 @@ const WebViewShell = forwardRef<WebViewShellHandle, WebViewShellProps>(({ initia
           })();
           true;
         `);
-      } else {
+      } else if (wasOnLogin) {
+        const { token, platform, installationId, appVersion, deviceName } = pushTokenRef.current;
         webViewRef.current?.injectJavaScript(
-          buildRegisterTokenScript(pushTokenRef.current.token, pushTokenRef.current.platform),
+          buildRegisterTokenScript(token, platform, installationId, appVersion, deviceName),
         );
       }
     }
@@ -191,7 +209,15 @@ const WebViewShell = forwardRef<WebViewShellHandle, WebViewShellProps>(({ initia
       const result = await registerForPushNotificationsAsync();
       if (result) {
         pushTokenRef.current = result;
-        webViewRef.current?.injectJavaScript(buildRegisterTokenScript(result.token, result.platform));
+        webViewRef.current?.injectJavaScript(
+          buildRegisterTokenScript(
+            result.token,
+            result.platform,
+            result.installationId,
+            result.appVersion,
+            result.deviceName,
+          ),
+        );
       }
     }
   }, []);

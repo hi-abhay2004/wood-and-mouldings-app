@@ -56,7 +56,8 @@
         }
       ],
       "expo-sharing",
-      "@preeternal/react-native-cookie-manager"
+      "@preeternal/react-native-cookie-manager",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,

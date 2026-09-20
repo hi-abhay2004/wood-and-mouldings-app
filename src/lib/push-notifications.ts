@@ -2,6 +2,7 @@ import * as Device from "expo-device";
 import Constants, { ExecutionEnvironment } from "expo-constants";
 import { Platform } from "react-native";
 import type * as NotificationsType from "expo-notifications";
+import { getInstallationId } from "@/lib/installation-id";
 
 function isExpoGo(): boolean {
   return Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
@@ -59,6 +60,9 @@ export type PushPlatform = "ios" | "android";
 export async function registerForPushNotificationsAsync(): Promise<{
   token: string;
   platform: PushPlatform;
+  installationId: string;
+  appVersion: string;
+  deviceName: string | null;
 } | null> {
   if (!Notifications) {
     console.warn("Push notifications are unavailable in Expo Go — use a development build.");
@@ -98,7 +102,10 @@ export async function registerForPushNotificationsAsync(): Promise<{
     }
 
     const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
-    return { token, platform: Platform.OS as PushPlatform };
+    const installationId = await getInstallationId();
+    const appVersion = `${Constants.nativeApplicationVersion ?? "?"} (${Constants.nativeBuildVersion ?? "?"})`;
+    const deviceName = Device.deviceName ?? Device.modelName ?? null;
+    return { token, platform: Platform.OS as PushPlatform, installationId, appVersion, deviceName };
   } catch (err) {
     console.error("Failed to obtain Expo push token:", err);
     return null;
